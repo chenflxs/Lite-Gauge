@@ -14,6 +14,7 @@ try:
 except ImportError:
     pynvml = None
 from multiprocessing.connection import Listener
+from app.windows_gpu import windows_gpu_names
 
 
 class _PdhValue(ctypes.Union):
@@ -33,13 +34,15 @@ class WindowsGpuEngineMonitor:
 
     _PDH_FMT_DOUBLE = 0x200
     _PDH_MORE_DATA = 0x800007D2
-    _ADAPTER_RE = re.compile(r"luid_0x[0-9a-f]+_0x[0-9a-f]+_phys_\d+", re.I)
+    _ADAPTER_RE = re.compile(r"luid_0x([0-9a-f]+)_0x([0-9a-f]+)_phys_\d+", re.I)
 
     def __init__(self) -> None:
         self._pdh: Optional[Any] = None
         self._query = ctypes.c_void_p()
         self._counter = ctypes.c_void_p()
         self.available = False
+        self._adapter_names = windows_gpu_names()
+        self._last_name_refresh = time.monotonic()
         if os.name != "nt":
             return
         try:
@@ -85,7 +88,14 @@ class WindowsGpuEngineMonitor:
         if not adapters:
             return None
         adapter, percent = max(adapters.items(), key=lambda entry: entry[1])
-        return {"percent": max(0.0, min(100.0, percent)), "adapter": adapter, "adapter_count": len(adapters)}
+        match = self._ADAPTER_RE.fullmatch(adapter)
+        luid = (int(match[1], 16), int(match[2], 16)) if match else None
+        # Refresh on an unknown LUID after a driver reset or GPU hot-plug, but
+        # never enumerate native adapters on every sampling tick.
+        if luid not in self._adapter_names and time.monotonic() - self._last_name_refresh >= 30:
+            self._adapter_names = windows_gpu_names()
+            self._last_name_refresh = time.monotonic()
+        return {"percent": max(0.0, min(100.0, percent)), "adapter": adapter, "adapter_count": len(adapters), "name": self._adapter_names.get(luid)}
 
     def close(self) -> None:
         if self._pdh is not None and self._query.value:
@@ -166,10 +176,10 @@ class SystemStatsProvider:
         nvml = self._nvml_gpu()
         if engine is None and nvml is None:
             return {"supported": False}
-        # Windows does not expose a stable NVML-to-LUID mapping.  On hybrid or
-        # multi-GPU PCs, avoid labelling the busiest Windows adapter as an
-        # NVIDIA card unless there is only one physical adapter counter.
-        name = nvml["name"] if nvml is not None and (engine is None or engine["adapter_count"] == 1) else "Windows GPU"
+        # Name the same adapter that supplied the Windows usage value. Counter
+        # count/order cannot identify an NVML device on hybrid/multi-GPU PCs.
+        name = (engine.get("name") or "Windows GPU") if engine else nvml["name"]
+        name = name.replace("NVIDIA", "").replace("GeForce", "").strip()
         result: dict[str, Any] = {"supported": True, "percent": engine["percent"] if engine else nvml["percent"], "source": "windows-gpu-engine" if engine else "nvml", "name": name, "memory_supported": nvml is not None}
         if engine:
             result["adapter_count"] = engine["adapter_count"]
