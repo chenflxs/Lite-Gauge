@@ -1,48 +1,41 @@
 # Lite-Gauge
 
-一个简洁的 Windows 桌面性能监控小工具，用圆环仪表显示 CPU、内存、GPU 和显存占用，并实时显示上传、下载速度。
+简洁的 Windows 桌面性能监控工具。在一个置顶小窗口里查看 CPU、内存、GPU、显存占用和实时网速。
 
 ![Lite-Gauge 界面预览](docs/预览.png)
 
 ## 功能
 
-- **实时监控**：约每秒刷新一次 CPU、内存、GPU 和显存数据。
-- **用量与型号**：显示内存、显存的已用容量与总容量，以及 GPU 型号。
-- **网络速度**：显示系统网络接口汇总的上传、下载速度。
-- **桌面悬浮**：窗口始终置顶，可拖动位置，也可一键移至屏幕右下角。
-- **明暗主题**：支持手动切换浅色和深色外观。
+- **四组圆环仪表**：直观显示 CPU、内存、GPU 和显存使用率，约每秒更新一次。
+- **容量与型号**：显示已用 / 总内存、已用 / 总显存，以及当前监控的 GPU 型号。
+- **实时网速**：查看上传与下载速度。
+- **桌面置顶**：拖动窗口自由摆放，也可一键移至屏幕右下角。
+- **深浅主题**：点击按钮即可切换明暗外观。
 
-## 使用方法
+## 开始使用
 
-使用已打包的程序时，无需安装 Python。
+解压完整程序包，双击 `LiteGauge.exe` 即可运行，无需安装 Python。
 
-1. 将程序完整解压到一个文件夹。
-2. 双击 `LiteGauge.exe` 启动。
-3. 拖动窗口空白处调整位置；点击右下角月亮 / 太阳按钮切换主题，点击箭头按钮移至右下角。
-4. 点击右上角 `×` 退出。
+请保留程序包中的文件夹和依赖文件，不要单独移动 EXE。使用外层启动器时，旁边的 `LiteGauge` 文件夹也需要一起保留。
 
-项目的打包输出位于 `dist/`，目录结构如下：
+| 操作 | 方法 |
+| --- | --- |
+| 移动窗口 | 按住窗口空白处拖动 |
+| 切换主题 | 点击右下角月亮 / 太阳按钮 |
+| 移至右下角 | 点击右下角箭头按钮 |
+| 退出程序 | 点击右上角 `×` |
 
-```text
-dist/
-├── LiteGauge.exe          # 启动器
-└── LiteGauge/
-    ├── LiteGauge.exe      # 主程序，也可以直接运行
-    └── _internal/         # 运行依赖
-```
+请保持只运行一个实例。
 
-移动或分发程序时，请保留完整目录。外层 `LiteGauge.exe` 是启动器，不能脱离 `LiteGauge/` 文件夹单独使用。
+## GPU 与显存支持
 
-## 数据说明
+GPU 占用优先使用 Windows 提供的数据，并识别对应显卡的型号。多显卡设备会显示当前最繁忙的 GPU 引擎占用。
 
-- **GPU 占用**：优先读取 Windows GPU 性能计数器，显示当前最繁忙的 GPU 引擎占用；多显卡环境下，型号会随选中的 GPU 变化。
-- **显存占用**：目前通过 NVIDIA NVML 获取，需要受支持的 NVIDIA 显卡和驱动。无法读取时，显存圆环显示 `0%`，底部不显示显存容量，这不代表实际显存用量为零。
-- **多显卡设备**：GPU 占用与显存数据分别获取，可能来自不同显卡。
-- **无法识别 GPU**：`Windows GPU` 表示已读到占用但未解析到型号；`Not Detected` 表示未获取到可用的 GPU 占用数据。
+显存监控目前支持可通过 NVML 读取数据的 NVIDIA 显卡。无法读取显存时，圆环显示 `0%`，底部不显示显存容量；这不代表实际没有使用显存。多显卡设备的 GPU 占用与显存数据可能来自不同显卡。
 
 ## 从源码运行
 
-已在 Windows、Python 3.11 环境下验证。进入项目目录后，在 PowerShell 中执行：
+项目已在 Windows、Python 3.11 环境下验证。在项目目录打开 PowerShell，执行：
 
 ```powershell
 python -m venv .venv
@@ -50,20 +43,12 @@ python -m venv .venv
 .\.venv\Scripts\python.exe start.py
 ```
 
-`nvidia-ml-py` 提供 NVIDIA 显存监控；没有 NVIDIA 显卡时可以省略，Windows GPU 占用和型号识别不依赖它。
-
-请通过 `start.py` 启动，并保持只运行一个实例。界面与采样服务使用本机端口 `6000` 通信，重复启动或端口被占用会影响数据获取。
+没有 NVIDIA 显卡时，可以省略 `nvidia-ml-py`。
 
 <details>
-<summary>开发与打包</summary>
+<summary>自行打包</summary>
 
-运行回归测试：
-
-```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
-```
-
-使用目录模式打包主程序，再生成外层启动器：
+完成上面的依赖安装后，关闭正在运行的程序，再执行：
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install pyinstaller
@@ -71,6 +56,6 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m PyInstaller --noconfirm LiteGauge-launcher.spec
 ```
 
-打包前先关闭正在运行的旧程序。输出位于 `dist/`，分发时将整个 `dist/` 目录打包。当前目录构建用于保留 Qt 运行库布局；`LiteGauge.spec` 是旧的单文件方案，不作为上述构建流程的入口。
+生成的程序位于 `dist/`。分发时保留整个目录，包括外层启动器和 `LiteGauge/` 文件夹。
 
 </details>
